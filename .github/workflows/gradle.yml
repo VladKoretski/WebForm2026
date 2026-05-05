@@ -28,46 +28,11 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    # 🔥 Устанавливаем Chrome + ВСЕ зависимости
-    - name: Install Chrome and dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          wget \
-          gnupg \
-          ca-certificates \
-          fonts-liberation \
-          libasound2 \
-          libatk-bridge2.0-0 \
-          libatk1.0-0 \
-          libcups2 \
-          libdbus-1-3 \
-          libdrm2 \
-          libgbm1 \
-          libgtk-3-0 \
-          libnspr4 \
-          libnss3 \
-          libx11-xcb1 \
-          libxcomposite1 \
-          libxdamage1 \
-          libxrandr2 \
-          xdg-utils
-        
-        # Устанавливаем Chrome
-        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-        
-        # Проверяем версии
-        google-chrome --version
-        google-chrome-stable --version
-
-    # 🔥 Устанавливаем ChromeDriver через WebDriverManager (совместимый с версией Chrome)
-    - name: Setup ChromeDriver
-      run: |
-        # WebDriverManager скачает правильный драйвер автоматически
-        echo "ChromeDriver will be managed by WebDriverManager in tests"
+    # 🔥 Устанавливаем Chrome автоматически (все зависимости включены)
+    - name: Set up Chrome
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable  # или конкретная версия, например '120'
 
     # 🔥 Собираем приложение
     - name: Build application
@@ -92,71 +57,36 @@ jobs:
           exit 1
         fi
         
-        echo "✅ Starting application: $JAR_FILE"
+        echo "✅ Starting: $JAR_FILE"
         java -jar "$JAR_FILE" > app.log 2>&1 &
-        APP_PID=$!
-        echo "Application PID: $APP_PID"
         
-        # Ждем и проверяем доступность
-        echo "Waiting for application to be ready..."
+        # Ждем запуска
+        echo "Waiting for app..."
         for i in {1..20}; do
           if curl -sf http://localhost:7777 > /dev/null 2>&1; then
-            echo "✅ Application is ready at http://localhost:7777"
-            curl -s http://localhost:7777 | head -20  # Покажем ответ для отладки
+            echo "✅ App ready!"
             break
           fi
-          echo "⏳ Attempt $i/20: Waiting for app..."
           sleep 3
         done
         
         # Финальная проверка
-        if ! curl -sf http://localhost:7777 > /dev/null 2>&1; then
-          echo "❌ Application failed to start!"
-          echo "=== Application log ==="
-          cat app.log || echo "No log file"
-          exit 1
-        fi
+        curl -sf http://localhost:7777 || (echo "❌ App failed"; cat app.log; exit 1)
 
-    # 🔥 Запускаем тесты с подробным логом
+    # 🔥 Запускаем тесты
     - name: Run tests
-      run: |
-        ./gradlew test --info \
-          -Dapp.url=http://localhost:7777 \
-          -Dwebdriver.chrome.verboseLogging=true \
-          -Dorg.gradle.logging.level=info
-      env:
-        SELENIUM_REMOTE_LOGGING: true
+      run: ./gradlew test -Dapp.url=http://localhost:7777
 
     # 🔥 Останавливаем приложение
     - name: Stop SUT
       if: always()
-      run: |
-        echo "Stopping application..."
-        pkill -f "java -jar" || true
-        pkill -f app-order.jar || true
-        
-        # Показываем лог приложения при ошибке
-        if [ -f app.log ]; then
-          echo "=== Application log ==="
-          tail -50 app.log
-        fi
+      run: pkill -f "java -jar" || true
 
-    # 📊 Загружаем артефакты
+    # 📊 Артефакты
     - name: Upload test report
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: test-report-${{ github.run_number }}
         path: build/reports/tests/test/
-        retention-days: 7
-
-    - name: Upload app logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-logs-${{ github.run_number }}
-        path: |
-          app.log
-          build/reports/tests/test/
-          *.log
         retention-days: 7
