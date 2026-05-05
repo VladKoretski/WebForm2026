@@ -1,0 +1,32 @@
+# appveyor.yml — минимальная версия
+image: Ubuntu2204
+
+branches:
+  only:
+    - main
+
+install:
+  - sh: |
+      sudo apt-get update -qq
+      sudo apt-get install -y -qq openjdk-17-jdk google-chrome-stable
+      java -version
+      google-chrome --version
+
+build_script:
+  - chmod +x gradlew
+  - ./gradlew clean build -x test --no-daemon
+
+test_script:
+  - sh: |
+      java -jar app-order.jar > app.log 2>&1 &
+      sleep 10
+      for i in {1..10}; do
+        curl -sf http://localhost:9999 && break
+        sleep 2
+      done
+      ./gradlew test -Dapp.url=http://localhost:9999 --no-daemon
+      pkill -f app-order.jar || true
+
+artifacts:
+  - path: 'build/reports/tests/test/'
+    name: reports
