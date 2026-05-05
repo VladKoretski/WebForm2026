@@ -63,7 +63,7 @@ jobs:
         # Ждем запуска
         echo "Waiting for app..."
         for i in {1..20}; do
-          if curl -sf http://localhost:7777 > /dev/null 2>&1; then
+          if curl -sf http://localhost:9999 > /dev/null 2>&1; then
             echo "✅ App ready!"
             break
           fi
@@ -71,11 +71,11 @@ jobs:
         done
         
         # Финальная проверка
-        curl -sf http://localhost:7777 || (echo "❌ App failed"; cat app.log; exit 1)
+        curl -sf http://localhost:9999 || (echo "❌ App failed"; cat app.log; exit 1)
 
     # 🔥 Запускаем тесты
     - name: Run tests
-      run: ./gradlew test -Dapp.url=http://localhost:7777
+      run: ./gradlew test -Dapp.url=http://localhost:9999
 
     # 🔥 Останавливаем приложение
     - name: Stop SUT
