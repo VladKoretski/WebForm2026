@@ -10,32 +10,43 @@ import java.time.Duration;
 
 public class TestWebForm {
 
-    //Запустить браузер
-    //Открыть сайт
-    //Заполнить форму и нажать кнопку
-    //Проверить наличие ожидаемого результата
-    //Все закрыть
-    //посмотрть отчет
-    //Отправить в репозиторий и сделать CI
-
-    //Подготовка среды
-    WebDriver driver;
+       WebDriver driver;
+    private static String baseUrl = "http://localhost:7777/";
 
     @BeforeAll
     static void prepareBrowser(){
         WebDriverManager.chromedriver().setup();
+        
+        // Получаем URL из переменной окружения (для CI)
+        String envUrl = System.getProperty("app.url");
+        if (envUrl != null && !envUrl.isEmpty()) {
+            baseUrl = envUrl;
+        }
+        System.out.println("Testing URL: " + baseUrl);
     }
 
     @BeforeEach
     void openSite(){
-        driver = new ChromeDriver();
-        driver.get("http://localhost:7777/");
+        // 🔥 Настраиваем Chrome для headless режима
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");  // Headless режим
+        options.addArguments("--no-sandbox");     // Необходимо для CI
+        options.addArguments("--disable-dev-shm-usage"); // Обходит проблемы с /dev/shm
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--remote-allow-origins=*");
+        
+        driver = new ChromeDriver(options);
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        driver.get(baseUrl);
     }
 
     @AfterEach
     void close() {
-        driver.quit();
-        driver=null;
+        if (driver != null) {
+            driver.quit();
+            driver = null;
+        }
     }
 
     @Test
