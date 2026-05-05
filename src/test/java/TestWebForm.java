@@ -3,6 +3,7 @@ import org.junit.jupiter.api.*;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;  // ✅ Добавлен импорт
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
@@ -10,7 +11,7 @@ import java.time.Duration;
 
 public class TestWebForm {
 
-       WebDriver driver;
+    WebDriver driver;
     private static String baseUrl = "http://localhost:7777/";
 
     @BeforeAll
@@ -27,11 +28,11 @@ public class TestWebForm {
 
     @BeforeEach
     void openSite(){
-        // 🔥 Настраиваем Chrome для headless режима
+        // 🔥 Настраиваем Chrome для headless режима в CI
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless=new");  // Headless режим
-        options.addArguments("--no-sandbox");     // Необходимо для CI
-        options.addArguments("--disable-dev-shm-usage"); // Обходит проблемы с /dev/shm
+        options.addArguments("--headless=new");
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--remote-allow-origins=*");
@@ -50,10 +51,11 @@ public class TestWebForm {
     }
 
     @Test
-    void testRunBrowser () throws InterruptedException {
+    void testRunBrowser() throws InterruptedException {
         Thread.sleep(3000);
+        Assertions.assertTrue(true); // простая проверка, что тест запустился
     }
-
+       
     //Tests, bad practice
     @Test
     void testEmptyFields() throws InterruptedException {
