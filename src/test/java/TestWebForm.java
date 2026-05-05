@@ -13,7 +13,7 @@ import java.time.Duration;
 public class TestWebForm {
 
     WebDriver driver;
-    private static String baseUrl = "http://localhost:7777/";
+    private static String baseUrl = "http://localhost:9999/";
 
     @BeforeEach
 void openSite(){
