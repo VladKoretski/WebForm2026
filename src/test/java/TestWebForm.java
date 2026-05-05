@@ -14,17 +14,38 @@ public class TestWebForm {
     WebDriver driver;
     private static String baseUrl = "http://localhost:7777/";
 
-    @BeforeAll
-    static void prepareBrowser(){
-        WebDriverManager.chromedriver().setup();
+    @BeforeEach
+void openSite(){
+    System.out.println("🔍 Opening URL: " + baseUrl);
+    
+    ChromeOptions options = new ChromeOptions();
+    options.addArguments("--headless");  // Классический headless (более стабильный)
+    options.addArguments("--no-sandbox");
+    options.addArguments("--disable-dev-shm-usage");
+    options.addArguments("--disable-gpu");
+    options.addArguments("--window-size=1920,1080");
+    options.addArguments("--remote-allow-origins=*");
+    options.setPageLoadStrategy(PageLoadStrategy.EAGER); // Быстрее загружает страницы
+    
+    try {
+        driver = new ChromeDriver(options);
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
         
-        // Получаем URL из переменной окружения (для CI)
-        String envUrl = System.getProperty("app.url");
-        if (envUrl != null && !envUrl.isEmpty()) {
-            baseUrl = envUrl;
-        }
-        System.out.println("Testing URL: " + baseUrl);
+        System.out.println("🌐 Navigating to: " + baseUrl);
+        driver.get(baseUrl);
+        
+        // Проверка, что страница загрузилась
+        String currentUrl = driver.getCurrentUrl();
+        System.out.println("✅ Current URL: " + currentUrl);
+        System.out.println("✅ Page title: " + driver.getTitle());
+        
+    } catch (Exception e) {
+        System.err.println("❌ Failed to open browser: " + e.getMessage());
+        e.printStackTrace();
+        throw e;
     }
+}
 
     @BeforeEach
     void openSite(){
