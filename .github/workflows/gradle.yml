@@ -9,7 +9,6 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: read
 
@@ -29,69 +28,120 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x gradlew
 
-    # 🔥 Устанавливаем Chrome browser
-    - name: Install Chrome
+    # 🔥 Устанавливаем Chrome + ВСЕ зависимости
+    - name: Install Chrome and dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y wget gnupg
+        sudo apt-get install -y \
+          wget \
+          gnupg \
+          ca-certificates \
+          fonts-liberation \
+          libasound2 \
+          libatk-bridge2.0-0 \
+          libatk1.0-0 \
+          libcups2 \
+          libdbus-1-3 \
+          libdrm2 \
+          libgbm1 \
+          libgtk-3-0 \
+          libnspr4 \
+          libnss3 \
+          libx11-xcb1 \
+          libxcomposite1 \
+          libxdamage1 \
+          libxrandr2 \
+          xdg-utils
+        
+        # Устанавливаем Chrome
         wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
         sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable
+        
+        # Проверяем версии
+        google-chrome --version
+        google-chrome-stable --version
 
-    # 🔥 Устанавливаем ChromeDriver
-    - name: Install ChromeDriver
-      uses: nanasess/setup-chromedriver@v2
+    # 🔥 Устанавливаем ChromeDriver через WebDriverManager (совместимый с версией Chrome)
+    - name: Setup ChromeDriver
+      run: |
+        # WebDriverManager скачает правильный драйвер автоматически
+        echo "ChromeDriver will be managed by WebDriverManager in tests"
 
     # 🔥 Собираем приложение
-    - name: Build application JAR
+    - name: Build application
       run: ./gradlew clean build -x test
 
-    # 🔥 Запускаем приложение в фоне
-    - name: Start SUT (System Under Test)
+    # 🔥 Запускаем приложение
+    - name: Start SUT
       run: |
-        # Ищем jar файл (может быть в build/libs или корневой app-order.jar)
+        # Ищем JAR файл
+        JAR_FILE=""
         if [ -f "app-order.jar" ]; then
-          echo "Using app-order.jar from root"
-          java -jar app-order.jar &
-        elif [ -f "build/libs/*.jar" ]; then
-          echo "Using JAR from build/libs"
-          java -jar build/libs/*.jar &
+          JAR_FILE="app-order.jar"
+        elif [ -f "build/libs/TestWebFormAuto-1.0-SNAPSHOT.jar" ]; then
+          JAR_FILE="build/libs/TestWebFormAuto-1.0-SNAPSHOT.jar"
         else
-          echo "JAR file not found!"
+          JAR_FILE=$(find build/libs -name "*.jar" -type f ! -name "*-javadoc.jar" ! -name "*-sources.jar" | head -1)
+        fi
+        
+        if [ -z "$JAR_FILE" ] || [ ! -f "$JAR_FILE" ]; then
+          echo "❌ JAR file not found!"
           find . -name "*.jar" -type f
           exit 1
         fi
         
-        # Ждем запуска приложения (увеличьте время если нужно)
-        echo "Waiting for application to start..."
-        sleep 15
+        echo "✅ Starting application: $JAR_FILE"
+        java -jar "$JAR_FILE" > app.log 2>&1 &
+        APP_PID=$!
+        echo "Application PID: $APP_PID"
         
-        # Проверяем, что приложение доступно
-        echo "Checking if application is running..."
-        for i in {1..10}; do
-          if curl -s http://localhost:7777 > /dev/null; then
-            echo "✅ Application is ready!"
+        # Ждем и проверяем доступность
+        echo "Waiting for application to be ready..."
+        for i in {1..20}; do
+          if curl -sf http://localhost:7777 > /dev/null 2>&1; then
+            echo "✅ Application is ready at http://localhost:7777"
+            curl -s http://localhost:7777 | head -20  # Покажем ответ для отладки
             break
           fi
-          echo "Attempt $i: Waiting..."
+          echo "⏳ Attempt $i/20: Waiting for app..."
           sleep 3
         done
+        
+        # Финальная проверка
+        if ! curl -sf http://localhost:7777 > /dev/null 2>&1; then
+          echo "❌ Application failed to start!"
+          echo "=== Application log ==="
+          cat app.log || echo "No log file"
+          exit 1
+        fi
 
-    # 🔥 Запускаем тесты с headless Chrome
-    - name: Run tests with headless Chrome
-      run: ./gradlew test
+    # 🔥 Запускаем тесты с подробным логом
+    - name: Run tests
+      run: |
+        ./gradlew test --info \
+          -Dapp.url=http://localhost:7777 \
+          -Dwebdriver.chrome.verboseLogging=true \
+          -Dorg.gradle.logging.level=info
       env:
-        APP_URL: http://localhost:7777
+        SELENIUM_REMOTE_LOGGING: true
 
     # 🔥 Останавливаем приложение
     - name: Stop SUT
       if: always()
       run: |
+        echo "Stopping application..."
         pkill -f "java -jar" || true
         pkill -f app-order.jar || true
+        
+        # Показываем лог приложения при ошибке
+        if [ -f app.log ]; then
+          echo "=== Application log ==="
+          tail -50 app.log
+        fi
 
-    # 📊 Загружаем отчет о тестах
+    # 📊 Загружаем артефакты
     - name: Upload test report
       if: always()
       uses: actions/upload-artifact@v4
@@ -100,13 +150,13 @@ jobs:
         path: build/reports/tests/test/
         retention-days: 7
 
-    # 📊 Загружаем логи приложения (если есть)
-    - name: Upload application logs
+    - name: Upload app logs on failure
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: app-logs-${{ github.run_number }}
+        name: debug-logs-${{ github.run_number }}
         path: |
+          app.log
+          build/reports/tests/test/
           *.log
-          logs/
         retention-days: 7
