@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'application'  // Добавляем для удобного запуска
 }
 
 group = 'ru.mirea'
@@ -14,8 +15,20 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.seleniumhq.selenium:selenium-java:4.18.1'
     testImplementation 'io.github.bonigarcia:webdrivermanager:5.7.0'
+    
+    // Добавьте для headless Chrome в CI
+    testImplementation 'org.slf4j:slf4j-simple:2.0.12'
 }
 
 test {
     useJUnitPlatform()
+    
+    // Передаем переменные окружения в тесты
+    systemProperty 'app.url', System.getProperty('app.url', 'http://localhost:7777')
+}
+
+// Задача для запуска приложения
+tasks.register('runApp', JavaExec) {
+    mainClass = 'ru.mirea.Application' // Укажите ваш main класс
+    classpath = sourceSets.main.runtimeClasspath
 }
