@@ -27,8 +27,3 @@ test {
     systemProperty 'app.url', System.getProperty('app.url', 'http://localhost:7777')
 }
 
-// Задача для запуска приложения
-tasks.register('runApp', JavaExec) {
-    mainClass = 'ru.mirea.Application' // Укажите ваш main класс
-    classpath = sourceSets.main.runtimeClasspath
-}
